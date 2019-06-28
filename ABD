@@ -1,0 +1,482 @@
+#include <iostream>
+#include <vector>
+#include <set>
+#include <unordered_map>
+#include <map>
+#include <time.h>
+#include <fstream>
+#include <math.h>
+#include <cstdint>
+#include <limits>
+#include <ctime>
+#include <algorithm>
+#include <string>
+using namespace std;
+
+string inputfilename;
+int Y;
+int X;
+double p;
+double q;
+double r;
+int backedgenum = 0;
+int n;
+class Node;
+class Edge;
+class Triangle;
+vector <int> OrderedNodes;
+vector <vector <int>> Tournament;
+
+set <Edge *> Eprime;
+set <Edge *> E;
+set <Edge *> Ecpy;
+set <Node *> U;
+set <int> VonT;
+set <int> VonTcpy;
+
+unordered_map <int, Node*> CoordNode;
+
+typedef pair<Node*, Node*> Key;
+map <Key, Edge*> EdgeHash;
+set <Triangle *> activeTriangles;
+set <Triangle *> activeTcpy;
+set <vector <int>> activeTriangleV;
+int outliersize;
+double epsilon2 = 0.1;
+
+double penaltyfunc;
+
+class Node {
+public:
+    int number;
+    double b;
+    int bsize;
+    vector <Triangle*> t;
+    Node(int n){
+        number = n;
+    }
+};
+
+class Edge {
+public:
+    Node * endpoint1;
+    Node * endpoint2;
+    vector <Triangle*> t;
+    double ab;
+    int absize;
+    Edge (Node* n1, Node* n2){
+        endpoint1 = n1;
+        endpoint2 = n2;
+    }
+};
+
+class Triangle{
+public:
+    Node * x1;
+    Node * x2;
+    Node * x3;
+    double rt;
+    Edge * e1;
+    Edge * e2;
+    Edge * e3;
+    bool active;
+    Triangle (Node* x,Node*y, Node* z, Edge* e, Edge* ee , Edge* eee){
+        x1 = x;
+        x2 = y;
+        x3 = z;
+        e1 = e;
+        e2 = ee;
+        e3 = eee;
+        rt = 0;
+        active = true;
+    }
+};
+
+
+
+
+void RandomTournament(){
+    cout << "enter the below factors respectively:" << endl;
+    cout << "edge-perturbation (p) , node perturbation (q) and edge-perturbation for the perturbed nodes (r)" << endl;
+    cout << "e.g. 0.001 , 0.01 , 0.50" << endl;
+    cin >> p >> q >> r;
+    X = n*q;
+    
+    srand (unsigned (std::time(0)));
+    vector <int> permutation;
+    for (int i=0; i<n; i++)
+        permutation.push_back(i);
+    random_shuffle (permutation.begin(), permutation.end());
+    
+    
+    //edge initialization and edge perturbation
+    for (int i=0 ; i<n ; i++){
+        Tournament [permutation[i]][permutation[i]] = 0;
+        for (int j=i+1 ; j<n ; j++){
+            Tournament[permutation[i]][permutation[j]]= 1;
+            double perturb = ((double) rand() / (RAND_MAX));
+            if (perturb <= p){
+                Tournament[permutation[i]][permutation[j]]= 1 - Tournament[permutation[i]][permutation[j]];
+            }
+            
+            Tournament[permutation[j]][permutation[i]]= 1 - Tournament[permutation[i]][permutation[j]];
+        }
+    }
+    
+    
+    
+    //node perturbation
+    for (int i=0 ; i<n ; i++){
+        double perturb1 = ((double) rand() / (RAND_MAX));
+        if (perturb1 <= q){
+            for (int j=0 ; j<n ; j++){
+                double perturb2 = ((double) rand() / (RAND_MAX));
+                if (j!= i && perturb2<= r){
+                    Tournament[i][j] = 1- Tournament[i][j];
+                    Tournament[j][i] = 1- Tournament[j][i];
+                }
+            }
+        }
+    }
+    
+
+    for (int i=0 ; i<n ; i++)
+        for (int j=0 ; j<n ; j++)
+            if (Tournament[i][j]){
+                Edge * e = new Edge(CoordNode[i], CoordNode[j]);
+                Key temp (e->endpoint1, e->endpoint2);
+                EdgeHash[temp] = e;
+            }
+}
+
+
+
+void readgraph (){
+    cout << "enter your file name (e.g. input.txt)" << endl;
+    cout << "your input must contain n (number of nodes) in the first line followed by an n*n vector representing the adjacency matrix of the tournament in the following lines." << endl;
+    cin >> inputfilename;
+    
+    
+    ifstream file;
+    file.open (inputfilename);
+    file >> n;
+    
+    Tournament.resize(n);
+    for (int i=0 ; i<n ; i++)
+        Tournament[i].resize(n);
+    
+    for (int i=0 ; i<n ; i++){
+        Node * x = new Node(i);
+        CoordNode[i] = x;
+    }
+    
+    for (int i=0 ; i<n; i++)
+        for (int j=0 ; j<n ; j++){
+            file >> Tournament[i][j];
+        }
+    
+    for (int i=0 ; i<n ; i++){
+        for (int j=0 ; j<n ; j++){
+            if (Tournament[i][j]){
+                Edge * e = new Edge (CoordNode[i], CoordNode[j]);
+                Key temp (e->endpoint1, e->endpoint2);
+                EdgeHash [temp] = e;
+            }
+        }
+    }
+    
+    file.close();
+    cout << "enter B, the outliers search range (0 <= x* <= B)" << endl;
+    cin >> X;
+}
+
+
+
+void input (){
+    int option;
+    cout << "for generating synthetic dataset insert 1" << endl;
+    cout << "for entering your input tournament insert 2" << endl;
+    cin >> option;
+    
+    
+    if (option == 1){
+        cout << "insert node numbers" << endl;
+        cin >> n;
+        Tournament.resize(n);
+        for (int i=0 ; i<n ; i++)
+            Tournament[i].resize(n);
+        
+        for (int i=0 ; i<n ; i++){
+            Node * x = new Node(i);
+            CoordNode[i] = x;
+        }
+        RandomTournament();
+    }
+    
+    if (option == 2)
+        readgraph ();
+}
+
+
+
+
+int findBackEdgeNum(vector <int> orderedvertices, vector <vector <int>> tournament){
+    backedgenum = 0;
+    for (int i=0 ; i<orderedvertices.size() ; i++)
+        for (int j=i+1 ; j<orderedvertices.size() ; j++)
+            if (!tournament[orderedvertices[i]][orderedvertices[j]]){
+                backedgenum++;
+            }
+    return backedgenum;
+}
+
+void findbadTriangles (){
+    for (int i=0 ; i<n ; i++){
+        for (int j=0 ; j<n ; j++){
+            for (int k=0 ; k<n ; k++){
+                if (Tournament[i][j] && Tournament[j][k] && Tournament[k][i] && activeTriangleV.find({i,j,k}) == activeTriangleV.end()){
+                    
+                    Key temp1 (CoordNode[i], CoordNode[j]);
+                    Key temp2 (CoordNode[j], CoordNode[k]);
+                    Key temp3 (CoordNode[k], CoordNode[i]);
+                    Triangle * t = new Triangle (CoordNode[i], CoordNode[j], CoordNode[k], EdgeHash[temp1], EdgeHash[temp2], EdgeHash[temp3]);
+                    
+                    E.insert(EdgeHash[temp1]);
+                    E.insert(EdgeHash[temp2]);
+                    E.insert(EdgeHash[temp3]);
+                    VonT.insert(i);
+                    VonT.insert(j);
+                    VonT.insert(k);
+                    
+                    t->x1->t.push_back(t);
+                    t->x2->t.push_back(t);
+                    t->x3->t.push_back(t);
+                    t->e1->t.push_back(t);
+                    t->e2->t.push_back(t);
+                    t->e3->t.push_back(t);
+                    activeTriangles.insert(t);
+                    activeTriangleV.insert({i,j,k});
+                    activeTriangleV.insert({j,k,i});
+                    activeTriangleV.insert({k,i,j});
+                }
+            }
+        }
+    }
+    cout << endl;
+    cout << "number of bad triangles is: ";
+    cout << activeTriangles.size() << endl;
+}
+
+void copydata (){
+    for (auto element: activeTriangles)
+        activeTcpy.insert(element);
+    for (auto element: VonT)
+        VonTcpy.insert(element);
+    for (auto element: E)
+        Ecpy.insert(element);
+}
+
+bool constraint1(Edge * e){
+    double rtsum = 0;
+    for (int i=0 ; i<e->t.size() ; i++){
+        rtsum += e->t[i]->rt;
+    }
+    if (rtsum >= 1)
+        return true;
+    return false;
+}
+
+bool constraint2(Node * x){
+    double rtsum = 0;
+    for (int i=0 ; i<x->t.size() ; i++){
+        rtsum += x->t[i]->rt;
+    }
+    if (rtsum >= penaltyfunc)
+        return true;
+    return false;
+}
+
+void setabValues (){
+    for (int i=0 ; i<n ; i++){
+        CoordNode[i]->b = penaltyfunc;
+    }
+}
+void raiseVariables(){
+    int i =0;
+    while (!activeTriangles.empty()){
+        set <Triangle*> tobedeleted;
+        tobedeleted.clear();
+        
+        set<int>::iterator it1;
+        for (it1 = VonT.begin(); it1 != VonT.end(); ++it1){
+            CoordNode[*it1]->b -= CoordNode[*it1]->bsize*(1.0/n)*pow((1+epsilon2),i);
+            if (CoordNode[*it1]->b <= 0){
+                U.insert(CoordNode[*it1]);
+                for (int i=0 ; i<CoordNode[*it1]->t.size() ; i++){
+                    tobedeleted.insert(CoordNode[*it1]->t[i]);
+                }
+                VonT.erase(VonT.find(*it1));
+                it1--;
+            }
+            
+        }
+        
+        set<Edge*>::iterator it;
+        for (it = E.begin(); it != E.end(); ++it){
+            (*it)->ab -= (*it)->absize*(1.0/n)*pow((1+epsilon2),i);
+            if ((*it)->ab <= 0){
+                for (int l=0 ; l<(*it)->t.size() ; l++)
+                    tobedeleted.insert((*it)->t[l]);
+                E.erase(E.find(*it));
+                it--;
+            }
+        }
+        
+        
+        for (auto element: tobedeleted){
+            if (activeTriangles.find(element) != activeTriangles.end()){
+                element->x1->bsize--;
+                element->x2->bsize--;
+                element->x3->bsize--;
+                element->e1->absize--;
+                element->e2->absize--;
+                element->e3->absize--;
+                activeTriangles.erase(element);
+            }
+        }
+        
+        
+        i++;
+    }
+    
+    
+    outliersize = (int)U.size();
+}
+
+void InitializeOrderedNodes (){
+    OrderedNodes.resize(n-outliersize);
+    int counter = 0;
+    for (int i=0 ; i<n ; i++){
+        if (U.find(CoordNode[i]) == U.end()){
+            OrderedNodes[counter] = i;
+            counter++;
+        }
+    }
+}
+
+int partition (int head, int tail){
+    int Rand = head+random()% (tail-head+1);
+    int pivot = OrderedNodes[Rand];
+    swap (OrderedNodes[tail], OrderedNodes[Rand]);
+    int i = head-1;
+    for (int j=head ; j<tail ; j++){
+        if (Tournament[OrderedNodes[j]][pivot]){
+            i++;
+            swap (OrderedNodes[i], OrderedNodes[j]);
+        }
+    }
+    swap (OrderedNodes[i+1], OrderedNodes[tail]);
+    return i+1;
+}
+
+
+vector <int> KWIKSORT (int head , int tail){
+    if (head >= tail)
+        return OrderedNodes;
+    
+    int pivot = partition(head, tail);
+    KWIKSORT(head, pivot-1);
+    KWIKSORT(pivot+1, tail);
+    return OrderedNodes;
+}
+
+void resetdata(){
+    activeTriangles.clear();
+    VonT.clear();
+    E.clear();
+    for (int i=0 ; i<n ; i++){
+        CoordNode[i]->bsize = (int)CoordNode[i]->t.size();
+    }
+    
+    for (auto element: Ecpy)
+        E.insert(element);
+    
+    for (auto element: E){
+        element->ab = 1;
+        element->absize = (int)element->t.size();
+    }
+    for (auto element: VonTcpy)
+        VonT.insert(element);
+    
+    for (auto element: activeTcpy)
+        activeTriangles.insert(element);
+    
+    U.clear();
+    OrderedNodes.clear();
+    backedgenum = 0;
+}
+
+int main(int argc, const char * argv[]) {
+    clock_t t1,t2;
+    t1=clock();
+    
+    input ();
+    findbadTriangles();
+    copydata();
+    
+    
+    cout << "enter B', the backward edges search range (0 <= y* <= B')" << endl;
+    cin >> Y;
+    int minbackedge = INT_MAX;
+    int j = 1;
+    int bestystar = -1;
+    int bestxstar = -1;
+    int maxUsize = -1;
+    while(j<=X){
+        for (int i=1 ; i<=Y ; i*=2){
+            resetdata ();
+            penaltyfunc = double(i)/double(j);
+            setabValues();
+            raiseVariables();
+            InitializeOrderedNodes();
+            KWIKSORT(0, n-outliersize-1);
+            int curbackedge = findBackEdgeNum(OrderedNodes, Tournament);
+            if (outliersize <= (1.5*X)){
+                if (curbackedge == minbackedge && outliersize >= maxUsize){
+                    maxUsize = outliersize;
+                    bestxstar = i;
+                    bestystar = j;
+                }
+                if (backedgenum < minbackedge){
+                    maxUsize = outliersize;
+                    minbackedge = backedgenum;
+                    bestxstar = i;
+                    bestystar = j;
+                }
+            }
+        }
+        j*= 2;
+    }
+    
+   //  cout << "let [X,Y] be the best pair found in [B, B']" << endl;
+   //  cout << "X = " << bestxstar << endl;
+   //  cout << "Y = " << bestystar << endl;
+    
+    cout << "The algorithm #discarded-nodes (outliers): " << max(0,maxUsize) << endl;
+    cout << "The algorithm #back edge : " << minbackedge << endl;
+    
+    
+    
+    t2=clock();
+    float diff ((float)t2-(float)t1);
+    float seconds = diff / CLOCKS_PER_SEC;
+    cout<<"running time (seconds): " << seconds<<endl;
+    
+    
+    system ("pause");
+    return 0;
+}
+
+
+
+
