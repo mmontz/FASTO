@@ -1,0 +1,151 @@
+#include <iostream>
+#include <vector>
+#include <set>
+#include <unordered_map>
+#include <map>
+#include <time.h>
+#include <fstream>
+#include <math.h>
+#include <cstdint>
+#include <limits>
+#include <ctime>
+#include <algorithm>
+#include <string>
+using namespace std;
+
+
+string inputfilename;
+//double q = 0.01;
+vector <vector <int>> Tournament;
+set <int> sample;
+vector <int> sampleset;
+multimap <int, int> outlierschoices;
+set <int> Orderednodes;
+vector <int> finalorder;
+
+int n;
+int outliersize;
+int samplesize;
+
+
+void readgraph (){
+    cout << "enter your file name (e.g. input.txt)" << endl;
+    cout << "your input must contain n (number of nodes) in the first line followed by an n*n vector representing the adjacency matrix of the tournament in the following lines." << endl;
+    cin >> inputfilename;
+    
+    ifstream file;
+    file.open(inputfilename);
+    file >> n;
+    Tournament.resize(n);
+    for (int i=0 ; i<n ; i++)
+        Tournament[i].resize(n);
+    
+    for (int i=0 ; i<n; i++)
+        for (int j=0 ; j<n ; j++)
+            file >> Tournament[i][j];
+    file.close();
+    
+    cout << "enter #outliers" << endl;
+    cin >> outliersize;
+    //   outliersize = n*q;
+
+    for (int i=0 ; i<n ; i++)
+        Orderednodes.insert(i);
+}
+
+void sampling (){
+    int k;
+    cout << "enter sample size" << endl;
+    cin >> k;
+    // int k = 1.0/(2.0*q);
+    // int k = n/(2*sqrt(n));
+    // int k = sqrt(n)/4;
+    while (sample.size() != k){
+        int temp = rand()%n;
+        sample.insert(temp);
+    }
+    
+    for (auto element: sample)
+        sampleset.push_back(element);
+}
+
+
+int partition (vector <int> & V, int head, int tail){
+    int Rand = head+random()% (tail-head+1);
+    int pivot = V[Rand];
+    swap (V[tail], V[Rand]);
+    int i = head-1;
+    for (int j=head ; j<tail ; j++){
+        if (Tournament[V[j]][pivot]){
+            i++;
+            swap (V[i], V[j]);
+        }
+    }
+    swap (V[i+1], V[tail]);
+    return i+1;
+}
+
+
+void KWIKSORT (vector <int> & V, int head , int tail){
+    if (head >= tail)
+        return;
+    
+    int pivot = partition(V, head, tail);
+    KWIKSORT(V, head, pivot-1);
+    KWIKSORT(V, pivot+1, tail);
+}
+
+int findbadtrianglenum (int v){
+    int badtrianglenum = 0;
+    for (auto element1 : sample)
+        for (auto element2 : sample){
+            if (Tournament[element1][element2] && Tournament[element2][v] && Tournament[v][element1])
+                badtrianglenum++;
+            if (Tournament[element2][element1] && Tournament[element1][v] && Tournament[v][element2])
+                badtrianglenum++;
+        }
+    return badtrianglenum;
+}
+
+void removeoutliers(){
+    for (int i=0 ; i<n ; i++){
+        if (sample.find(i) == sample.end()){    //for non-sample vertices
+            outlierschoices.insert({findbadtrianglenum(i),i});
+        }
+    }
+    for (int i=0 ; i<outliersize ; i++){
+        Orderednodes.erase(Orderednodes.find(outlierschoices.rbegin()->second));
+        outlierschoices.erase(--outlierschoices.end());
+    }
+    
+    for (auto element: Orderednodes)
+        finalorder.push_back(element);
+}
+
+int findbackedgenum (){
+    int backedgenum = 0;
+    for (int i=0 ; i<finalorder.size() ; i++)
+        for (int j=i+1 ; j<finalorder.size() ; j++)
+            if (!Tournament[finalorder[i]][finalorder[j]])
+                backedgenum++;
+    return backedgenum;
+}
+
+int main(int argc, const char * argv[]) {
+    clock_t t1,t2;
+    t1=clock();
+    readgraph();
+    sampling();
+    KWIKSORT(sampleset, 0, sampleset.size()-1);
+    removeoutliers();
+    KWIKSORT(finalorder, 0, finalorder.size()-1);
+    
+    cout << "#backedges: " << findbackedgenum() << endl;
+    t2=clock();
+    float diff ((float)t2-(float)t1);
+    float seconds = diff / CLOCKS_PER_SEC;
+    cout <<"running time (seconds): " << seconds<<endl;
+    
+    system ("pause");
+    return 0;
+}
