@@ -355,6 +355,11 @@ void readgraph (){
                 Key temp (e->endpoint1, e->endpoint2);
                 EdgeHash[temp] = e;
             }
+    
+    cout << "enter your sample size" << endl;
+    cin >> Ssize;
+    cout << "enter B, the outliers search range (0 <= x* <= B)" << endl;
+    cin >> X;
     file.close();
 }
 
