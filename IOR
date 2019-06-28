@@ -1,0 +1,129 @@
+
+#include <iostream>
+#include <vector>
+#include <set>
+#include <unordered_map>
+#include <map>
+#include <time.h>
+#include <fstream>
+#include <math.h>
+#include <cstdint>
+#include <limits>
+#include <ctime>
+#include <algorithm>
+#include <string>
+
+using namespace std;
+
+string inputfilename;
+//double q = 0.01;
+vector <vector <int>> Tournament;
+vector <int> OrderedNodes;
+
+int n;
+int outliersize;
+
+
+void readgraph (){
+    cout << "enter your file name (e.g. input.txt)" << endl;
+    cout << "your input must contain n (number of nodes) in the first line followed by an n*n vector representing the adjacency matrix of the tournament in the following lines." << endl;
+    cin >> inputfilename;
+    
+    ifstream file;
+    file.open(inputfilename);
+    file >> n;
+    Tournament.resize(n);
+    for (int i=0 ; i<n ; i++)
+        Tournament[i].resize(n);
+    
+    for (int i=0 ; i<n; i++)
+        for (int j=0 ; j<n ; j++)
+            file >> Tournament[i][j];
+    file.close();
+    
+    OrderedNodes.resize(n);
+    for (int i=0 ; i<n ; i++)
+        OrderedNodes[i] = i;
+    
+    cout << "enter #outliers" << endl;
+    cin >> outliersize;
+    //outliersize = n*q;
+}
+
+int partition (int head, int tail){
+    int Rand = head+random()% (tail-head+1);
+    int pivot = OrderedNodes[Rand];
+    swap (OrderedNodes[tail], OrderedNodes[Rand]);
+    int i = head-1;
+    for (int j=head ; j<tail ; j++){
+        if (Tournament[OrderedNodes[j]][pivot]){
+            i++;
+            swap (OrderedNodes[i], OrderedNodes[j]);
+        }
+    }
+    swap (OrderedNodes[i+1], OrderedNodes[tail]);
+    return i+1;
+}
+
+
+void KWIKSORT (int head , int tail){
+    if (head >= tail)
+        return;
+    
+    int pivot = partition(head, tail);
+    KWIKSORT(head, pivot-1);
+    KWIKSORT(pivot+1, tail);
+}
+
+void removeoutlier(){
+    int backedgenum = 0;
+    int maxbackedge = 0;
+    int badvertex = -1;
+    for (int i=0 ; i<OrderedNodes.size() ; i++){
+        backedgenum = 0;
+        for (int j=0 ; j<i ; j++){
+            if (!Tournament[OrderedNodes[j]][OrderedNodes[i]])
+                backedgenum++;
+        }
+        for (int j=i+1 ; j<OrderedNodes.size() ; j++){
+            if (!Tournament[OrderedNodes[i]][OrderedNodes[j]])
+                backedgenum++;
+        }
+        if (backedgenum >= maxbackedge){
+            maxbackedge = backedgenum;
+            badvertex = i;
+        }
+    }
+    OrderedNodes.erase(OrderedNodes.begin()+badvertex);
+}
+
+int findbackedgenum (){
+    int backedgenum = 0;
+    for (int i=0 ; i<OrderedNodes.size() ; i++)
+        for (int j=i+1 ; j<OrderedNodes.size() ; j++)
+            if (!Tournament[OrderedNodes[i]][OrderedNodes[j]])
+                backedgenum++;
+    return backedgenum;
+}
+
+void findoutliers (){
+    for (int i=0 ; i<outliersize ; i++){
+        KWIKSORT(0, OrderedNodes.size()-1);
+        removeoutlier();
+    }
+}
+
+int main(int argc, const char * argv[]) {
+    clock_t t1,t2;
+    t1=clock();
+    readgraph();
+    findoutliers ();
+    cout << "#backedges: " << findbackedgenum() << endl;
+    t2=clock();
+    float diff ((float)t2-(float)t1);
+    float seconds = diff / CLOCKS_PER_SEC;
+    cout <<"running time (seconds): " << seconds<<endl;
+    
+    system ("pause");
+    return 0;
+}
