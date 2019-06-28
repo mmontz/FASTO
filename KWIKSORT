@@ -1,0 +1,78 @@
+#include <iostream>
+#include <vector>
+#include <fstream>
+#include <string>
+using namespace std;
+
+vector <vector <int>> Tournament;
+vector <int> OrderedNodes;
+int n;
+string inputfilename;
+
+int partition (int head, int tail){
+    int Rand = head+random()% (tail-head+1);
+    int pivot = OrderedNodes[Rand];
+    swap (OrderedNodes[tail], OrderedNodes[Rand]);
+    int i = head-1;
+    for (int j=head ; j<tail ; j++){
+        if (Tournament[OrderedNodes[j]][pivot]){
+            i++;
+            swap (OrderedNodes[i], OrderedNodes[j]);
+        }
+    }
+    swap (OrderedNodes[i+1], OrderedNodes[tail]);
+
+ return i+1;
+}
+
+
+void KWIKSORT (int head , int tail){
+    if (head >= tail)
+        return;
+    
+    int pivot = partition(head, tail);
+    KWIKSORT(head, pivot-1);
+    KWIKSORT(pivot+1, tail);
+}
+
+
+void readgraph (){
+    cout << "enter your file name (e.g. input.txt)" << endl;
+    cout << "your input must contain n (number of nodes) in the first line followed by an n*n vector representing the adjacency matrix of the tournament in the following lines." << endl;
+    cin >> inputfilename;
+    
+    ifstream file;
+    file.open(inputfilename);
+    file >> n;
+    
+    Tournament.resize(n);
+    for (int i=0 ; i<n ; i++)
+        Tournament[i].resize(n);
+    OrderedNodes.resize(n);
+
+    for (int i=0 ; i<n ; i++){
+        for (int j=0 ; j<n ; j++){
+            file >> Tournament[i][j];
+        }
+    }
+}
+
+int findBackEdgeNum(){
+    int backedgenum = 0;
+    for (int i=0 ; i<n ; i++)
+        for (int j=i+1 ; j<n ; j++)
+            if (!Tournament[OrderedNodes[i]][OrderedNodes[j]]){
+                backedgenum++;
+            }
+    return backedgenum;
+}
+
+int main(int argc, const char * argv[]) {
+    readgraph ();
+    
+    for (int i=0 ; i<n ; i++)
+        OrderedNodes[i] = i;
+    KWIKSORT(0, OrderedNodes.size()-1);
+    cout << "#backward-edges" << findBackEdgeNum() << endl;
+    return 0;
+}
